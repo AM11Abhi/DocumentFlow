@@ -1,0 +1,52 @@
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# =========================
+# Node / React
+# =========================
+node_modules/
+dist/
+.vite/
+
+# =========================
+# DocumentFlow local data
+# =========================
+uploads/
+
+# Local sample/generated test files
+samples/*.pdf
+samples/*.jpg
+samples/*.jpeg
+samples/*.png
+
+# =========================
+# IDE / OS
+# =========================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+*.log
