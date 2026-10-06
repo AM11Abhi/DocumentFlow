@@ -14,53 +14,74 @@ Upload → Store → Queue → Process → Validate → Result → Notify
 
 - **Frontend**: React (bootstrapped with Vite)
 - **Backend**: Python + FastAPI
-- **Database (Planned)**: PostgreSQL
-- **Queue (Planned)**: Redis
-- **Workers (Planned)**: Python background workers
-- **Storage**: Local file storage (evolving to cloud storage)
+- **Database**: PostgreSQL (managed via SQLAlchemy 2.x & Alembic)
+- **Queue**: Redis
+- **Worker**: Python background worker
+- **Storage**: Local file storage
 
 ---
 
 ## Current Project Status
 
-**Phase 0 — Project Setup**
+**Phase 2 — Asynchronous Processing Pipeline**
 
-- Project repository structure initialized
-- Minimal Python + FastAPI backend setup with health checks
-- Minimal React frontend (Vite-powered) setup
-- Initial document sample folders created (`marksheet`, `income_certificate`, `identity`)
+- `POST /documents`: Uploads document, validates magic bytes & size, saves file locally, creates `Document` and `ProcessingJob` (`QUEUED`), and enqueues job payload to Redis.
+- `GET /documents/{document_id}`: Inspects document and processing job status (`QUEUED`, `PROCESSING`, `COMPLETED`, `FAILED`).
+- `POST /documents/{document_id}/retry`: Re-queues failed jobs up to maximum 3 attempts.
+- **Worker Process**: `worker.py` consumes Redis queue, updates job/document lifecycle state (`QUEUED` → `PROCESSING` → `COMPLETED` / `FAILED`), and tracks attempt counts.
 
 ---
 
 ## How to Run Locally
 
-### 1. Backend (FastAPI)
+### 1. Database & Migrations (PostgreSQL & Alembic)
 
-Navigate to the `backend` directory, activate the virtual environment, and launch Uvicorn:
+Ensure PostgreSQL is running locally on port `5432` with a database named `documentflow`. Apply Alembic schema migrations:
 
-#### Windows (PowerShell):
+```powershell
+cd backend
+.\venv\Scripts\Activate.ps1
+alembic upgrade head
+```
+
+---
+
+### 2. Redis Server
+
+Ensure Redis is running locally on port `6379` (Redis is a required dependency for backend runtime and worker execution. Automated tests use `fakeredis` via pytest fixtures).
+
+---
+
+### 3. Backend API (FastAPI)
+
+Launch Uvicorn server:
+
 ```powershell
 cd backend
 .\venv\Scripts\Activate.ps1
 uvicorn main:app --reload --port 8000
 ```
 
-#### macOS / Linux:
-```bash
-cd backend
-source venv/bin/activate
-uvicorn main:app --reload --port 8000
-```
-
-The backend API will be available at:
-- API Base / Health: [http://localhost:8000/health](http://localhost:8000/health)
-- Swagger API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Health Check Endpoint**: [http://localhost:8000/health](http://localhost:8000/health)
+- **Swagger API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
-### 2. Frontend (React + Vite)
+### 4. Background Worker Process
 
-Navigate to the `frontend` directory and start the Vite development server:
+Start the background worker in a separate terminal window:
+
+```powershell
+cd backend
+.\venv\Scripts\Activate.ps1
+python worker.py
+```
+
+---
+
+### 5. Frontend (React + Vite)
+
+Start the Vite development server:
 
 ```bash
 cd frontend
@@ -76,18 +97,22 @@ The React frontend application will be available at [http://localhost:5173](http
 ```text
 DocumentFlow/
 ├── backend/
-│   ├── main.py              # FastAPI application entry point & health endpoints
+│   ├── app/
+│   │   ├── api/             # API routes (upload, read, retry endpoints)
+│   │   ├── db/              # Database session & Base metadata
+│   │   ├── models/          # Document & ProcessingJob SQLAlchemy models
+│   │   ├── schemas/         # Pydantic schemas (DocumentResponse, ProcessingJobResponse)
+│   │   ├── services/        # Business logic (file storage, document service, Redis queue)
+│   │   └── worker.py        # Worker loop logic & simulated processor
+│   ├── alembic/             # Database migrations
+│   ├── tests/               # Test suites (Phase 1 & Phase 2)
+│   ├── main.py              # FastAPI application entry point
+│   ├── worker.py            # Standalone worker runner script
 │   ├── requirements.txt     # Python dependencies
-│   └── venv/                # Local virtual environment
-├── frontend/
-│   ├── src/                 # React component source code
-│   ├── package.json         # Node.js dependencies and scripts
-│   └── vite.config.js       # Vite configuration
-├── docs/                    # Project documentation
-├── samples/                 # Sample test documents
-│   ├── marksheet/           # Academic transcripts & marksheets
-│   ├── income_certificate/  # Income certificates
-│   └── identity/            # Synthetic identity documents
-├── .gitignore               # Git ignore rules
-└── README.md                # Project documentation & setup instructions
+│   └── .env                 # Local environment configuration
+├── frontend/                # React Vite web application
+├── docs/                    # Documentation
+├── samples/                 # Sample documents for testing
+├── .gitignore
+└── README.md
 ```

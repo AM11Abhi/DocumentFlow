@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime
+from typing import Optional
 from pydantic import BaseModel, ConfigDict
 from app.models.document import DocumentStatus
+from app.schemas.processing_job import ProcessingJobResponse
 
 
 class DocumentResponse(BaseModel):
@@ -11,5 +13,6 @@ class DocumentResponse(BaseModel):
     file_size: int
     status: DocumentStatus
     created_at: datetime
+    processing_job: Optional[ProcessingJobResponse] = None
 
     model_config = ConfigDict(from_attributes=True)

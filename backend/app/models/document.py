@@ -1,14 +1,18 @@
 import uuid
 from datetime import datetime
 from enum import Enum as PyEnum
+from typing import Optional
 from sqlalchemy import String, BigInteger, DateTime, Enum, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 
 class DocumentStatus(str, PyEnum):
     UPLOADED = "UPLOADED"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
 
 
 class Document(Base):
@@ -38,4 +42,12 @@ class Document(Base):
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
+    )
+
+    # Relationship to ProcessingJob
+    processing_job: Mapped[Optional["ProcessingJob"]] = relationship(
+        "ProcessingJob",
+        back_populates="document",
+        uselist=False,
+        cascade="all, delete-orphan",
     )

@@ -6,3 +6,7 @@ psycopg2-binary>=2.9.9
 python-dotenv>=1.0.1
 python-multipart>=0.0.9
 pydantic-settings>=2.2.1
+redis>=5.0.0
+fakeredis>=2.20.0
+httpx>=0.28.0
+pytest>=8.0.0
