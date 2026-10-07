@@ -51,3 +51,11 @@ class Document(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    
+    # Relationship to ProcessingResult
+    processing_result: Mapped[Optional["ProcessingResult"]] = relationship(
+        "ProcessingResult",
+        back_populates="document",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )

@@ -60,16 +60,36 @@ def process_job_by_id(
         f"Processing attempt {job.attempts}/{MAX_ATTEMPTS} for Document {document_id} (Job {job_id})"
     )
 
-    # Step 2: Execute simulated processing
+    # Step 2: Execute document processing
     try:
+        from app.services.processors.pipeline import process_document
+        from app.models.processing_result import ProcessingResult
+        
         # Check if file name contains 'fail' or force_fail flag is set to simulate failure
         if force_fail or "fail" in doc.original_filename.lower():
             raise ValueError(
                 f"Simulated processing error for file: {doc.original_filename}"
             )
 
-        # Simulate small delay for processing
-        time.sleep(0.5)
+        # Process the document using the pipeline
+        result_data = process_document(doc.storage_path)
+        
+        # Delete existing result if this is a retry
+        existing_result = db.query(ProcessingResult).filter(ProcessingResult.document_id == document_id).first()
+        if existing_result:
+            db.delete(existing_result)
+            db.flush()
+            
+        # Create and store processing result
+        new_result = ProcessingResult(
+            document_id=document_id,
+            document_type=result_data["document_type"],
+            detection_score=result_data["detection_score"],
+            matched_signals=result_data["matched_signals"],
+            extracted_text=result_data["extracted_text"],
+            extracted_data=result_data["extracted_data"]
+        )
+        db.add(new_result)
 
         # Step 3: Success transition
         job.status = JobStatus.COMPLETED
