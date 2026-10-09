@@ -3,6 +3,8 @@ from datetime import datetime
 from typing import Optional, Any, Dict
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.validation_result import ValidationResultResponse
+
 class ProcessingResultResponse(BaseModel):
     id: uuid.UUID
     document_id: uuid.UUID
@@ -11,6 +13,7 @@ class ProcessingResultResponse(BaseModel):
     matched_signals: Optional[list[str]] = None
     extracted_text: Optional[str] = None
     extracted_data: Optional[Dict[str, Any]] = None
+    validation_result: Optional[ValidationResultResponse] = None
     created_at: datetime
     updated_at: datetime
 

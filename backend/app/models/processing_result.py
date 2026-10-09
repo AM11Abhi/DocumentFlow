@@ -44,3 +44,11 @@ class ProcessingResult(Base):
         "Document",
         back_populates="processing_result"
     )
+
+    # Relationship to ValidationResult
+    validation_result: Mapped[Optional["ValidationResult"]] = relationship(
+        "ValidationResult",
+        back_populates="processing_result",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )

@@ -90,6 +90,21 @@ def process_job_by_id(
             extracted_data=result_data["extracted_data"]
         )
         db.add(new_result)
+        db.flush() # flush to get new_result.id for validation result
+
+        from app.services.validators.engine import validate_document
+        from app.models.validation_result import ValidationResult
+
+        validation_data = validate_document(result_data["document_type"], result_data["extracted_data"])
+        
+        new_validation = ValidationResult(
+            processing_result_id=new_result.id,
+            overall_status=validation_data["overall_status"],
+            checks=validation_data["checks"],
+            policy_id=validation_data["policy_id"],
+            policy_version=validation_data["policy_version"]
+        )
+        db.add(new_validation)
 
         # Step 3: Success transition
         job.status = JobStatus.COMPLETED
