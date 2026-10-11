@@ -18,3 +18,13 @@ class DocumentResponse(BaseModel):
     processing_result: Optional[ProcessingResultResponse] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentListResponse(BaseModel):
+    items: list[DocumentResponse]
+    total: int
+    limit: int
+    offset: int
+
+    model_config = ConfigDict(from_attributes=True)
+

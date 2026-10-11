@@ -1,10 +1,12 @@
 import os
 import uuid
-from sqlalchemy.orm import Session
+from typing import Any
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi import UploadFile, HTTPException, status
 from app.models.document import Document, DocumentStatus
 from app.models.processing_job import ProcessingJob, JobStatus
+from app.models.processing_result import ProcessingResult
 from app.services.file_storage import save_uploaded_file, cleanup_document_file
 from app.services.queue import enqueue_job
 
@@ -97,3 +99,30 @@ def retry_document_job(db: Session, document_id: uuid.UUID) -> Document:
 
     enqueue_job(job.id, doc.id)
     return doc
+
+
+def list_documents(
+    db: Session, limit: int = 20, offset: int = 0
+) -> dict[str, Any]:
+    total = db.query(Document).count()
+    items = (
+        db.query(Document)
+        .options(
+            joinedload(Document.processing_job),
+            joinedload(Document.processing_result).joinedload(
+                ProcessingResult.validation_result
+            ),
+        )
+        .order_by(Document.created_at.desc(), Document.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
