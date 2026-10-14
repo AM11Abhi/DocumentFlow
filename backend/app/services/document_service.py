@@ -93,7 +93,9 @@ def retry_document_job(db: Session, document_id: uuid.UUID) -> Document:
     # Re-queue the job
     job.status = JobStatus.QUEUED
     job.error = None
-    doc.status = DocumentStatus.PROCESSING
+    job.lease_token = None
+    job.lease_expires_at = None
+    doc.status = DocumentStatus.UPLOADED
     db.commit()
     db.refresh(doc)
 

@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
     REDIS_QUEUE_NAME: str = "document_processing_queue"
 
+    # Worker Crash Recovery & Lease Configuration
+    WORKER_LEASE_DURATION_SECONDS: int = 60
+    WORKER_HEARTBEAT_INTERVAL_SECONDS: int = 15
+    WORKER_MAX_EXECUTION_TIME_SECONDS: int = 300
+    WORKER_RECOVERY_INTERVAL_SECONDS: int = 30
+
     model_config = SettingsConfigDict(
         env_file=os.path.join(
             os.path.dirname(os.path.dirname(__file__)), ".env"

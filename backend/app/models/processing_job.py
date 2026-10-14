@@ -49,6 +49,15 @@ class ProcessingJob(Base):
         nullable=True,
     )
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    lease_token: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+    lease_expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
 
     # Relationship to Document
     document: Mapped["Document"] = relationship(
