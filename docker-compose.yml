@@ -1,0 +1,149 @@
+services:
+  # ==========================================================
+  # 1. Relational Database: PostgreSQL 15
+  # ==========================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: documentflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-documentflow}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-documentflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    ports:
+      # Expose on host port 5433 by default to avoid collision with any local PostgreSQL instance
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+
+  # ==========================================================
+  # 2. In-Memory Broker & Cache: Redis 7
+  # ==========================================================
+  redis:
+    image: redis:7-alpine
+    container_name: documentflow-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    # Kept internal to Docker network per architectural security requirements (no host ports mapped)
+
+  # ==========================================================
+  # 3. Database Migration Runner: One-shot Alembic migration
+  # ==========================================================
+  migration:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: documentflow-backend:latest
+    container_name: documentflow-migration
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-documentflow}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ==========================================================
+  # 4. Backend REST API: FastAPI Application
+  # ==========================================================
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: documentflow-backend:latest
+    container_name: documentflow-api
+    restart: unless-stopped
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-documentflow}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      REDIS_QUEUE_NAME: document_processing_queue
+      UPLOAD_DIR: uploads
+    volumes:
+      - document_uploads:/app/uploads
+    ports:
+      - "${API_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+
+  # ==========================================================
+  # 5. Background Worker: Python Processing & Outbox Dispatcher
+  # ==========================================================
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: documentflow-backend:latest
+    container_name: documentflow-worker
+    restart: unless-stopped
+    command: ["python", "worker.py"]
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-documentflow}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      REDIS_QUEUE_NAME: document_processing_queue
+      UPLOAD_DIR: uploads
+    volumes:
+      - document_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+
+  # ==========================================================
+  # 6. Web Frontend: React SPA served via Nginx
+  # ==========================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Browser on host machine accesses API via localhost:8000
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    image: documentflow-frontend:latest
+    container_name: documentflow-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+# ==========================================================
+# Persistent Volumes
+# ==========================================================
+volumes:
+  # Persistent PostgreSQL database cluster files
+  postgres_data:
+    name: documentflow_postgres_data
+  # Shared uploaded documents volume accessible by API and Worker
+  document_uploads:
+    name: documentflow_document_uploads

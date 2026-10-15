@@ -1,0 +1,32 @@
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Python byte code and caches
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local data and uploads
+uploads/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Version control & IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs & temp files
+*.log
+test_script.py
