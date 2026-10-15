@@ -11,6 +11,7 @@ from app.db.session import SessionLocal
 from app.models.document import Document, DocumentStatus
 from app.models.processing_job import ProcessingJob, JobStatus
 from app.services.queue import dequeue_job, enqueue_job
+from app.services.outbox import create_outbox_event, dispatch_pending_outbox_events
 
 logging.basicConfig(
     level=logging.INFO,
@@ -230,7 +231,7 @@ def recover_stale_jobs(
             else:
                 logger.info(
                     f"Recovering expired Job {job.id} (attempt {job.attempts}/{MAX_ATTEMPTS}). "
-                    f"Resetting to QUEUED and re-enqueueing."
+                    f"Resetting to QUEUED and creating outbox event."
                 )
                 job.status = JobStatus.QUEUED
                 job.lease_token = None
@@ -241,10 +242,8 @@ def recover_stale_jobs(
                 )
                 if doc:
                     doc.status = DocumentStatus.UPLOADED
+                create_outbox_event(db, job_id=job.id, document_id=job.document_id)
                 db.commit()
-
-                # Re-enqueue to Redis queue
-                enqueue_job(job.id, job.document_id)
 
             recovered_ids.append(job.id)
 
@@ -488,26 +487,49 @@ def run_worker_loop(
 ):
     """Main worker loop popping jobs from Redis queue and executing them.
 
-    Runs startup recovery sweep and periodic recovery sweeps.
+    Runs startup recovery & outbox sweeps and periodic recovery & outbox sweeps.
     """
     logger.info("Starting DocumentFlow background worker...")
 
     # Startup recovery sweep
     logger.info("Running worker startup crash recovery sweep...")
-    recover_stale_jobs()
+    try:
+        recover_stale_jobs()
+    except Exception as exc:
+        logger.error(f"Error during startup recovery sweep: {exc}")
+
+    # Startup outbox dispatch sweep
+    logger.info("Running worker startup outbox dispatch sweep...")
+    try:
+        dispatch_pending_outbox_events()
+    except Exception as exc:
+        logger.error(f"Error during startup outbox dispatch sweep: {exc}")
 
     runs = 0
     last_recovery_mono = time.monotonic()
+    last_dispatch_mono = time.monotonic()
 
     while True:
         if max_runs is not None and runs >= max_runs:
             logger.info("Worker reached max_runs limit. Shutting down.")
             break
 
-        # Periodic recovery sweep check
         now_mono = time.monotonic()
+
+        # Periodic outbox dispatch sweep check
+        if now_mono - last_dispatch_mono >= settings.OUTBOX_DISPATCH_INTERVAL_SECONDS:
+            try:
+                dispatch_pending_outbox_events()
+            except Exception as exc:
+                logger.error(f"Error during periodic outbox dispatch: {exc}")
+            last_dispatch_mono = now_mono
+
+        # Periodic recovery sweep check
         if now_mono - last_recovery_mono >= settings.WORKER_RECOVERY_INTERVAL_SECONDS:
-            recover_stale_jobs()
+            try:
+                recover_stale_jobs()
+            except Exception as exc:
+                logger.error(f"Error during periodic recovery sweep: {exc}")
             last_recovery_mono = now_mono
 
         try:

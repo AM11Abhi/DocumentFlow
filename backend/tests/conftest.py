@@ -13,3 +13,28 @@ def use_fakeredis_for_tests():
     yield fake_client
     fake_client.delete(settings.REDIS_QUEUE_NAME)
     reset_redis_client()
+
+
+@pytest.fixture(autouse=True)
+def clean_outbox_for_tests():
+    """Ensures no pending outbox events leak between tests."""
+    from app.db.session import SessionLocal
+    from app.models.outbox import OutboxEvent, OutboxStatus
+    db = SessionLocal()
+    try:
+        db.query(OutboxEvent).filter(OutboxEvent.status == OutboxStatus.PENDING).update(
+            {"status": OutboxStatus.PUBLISHED}, synchronize_session=False
+        )
+        db.commit()
+    finally:
+        db.close()
+    yield
+    db = SessionLocal()
+    try:
+        db.query(OutboxEvent).filter(OutboxEvent.status == OutboxStatus.PENDING).update(
+            {"status": OutboxStatus.PUBLISHED}, synchronize_session=False
+        )
+        db.commit()
+    finally:
+        db.close()
+

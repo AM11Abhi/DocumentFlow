@@ -8,7 +8,7 @@ from app.models.document import Document, DocumentStatus
 from app.models.processing_job import ProcessingJob, JobStatus
 from app.models.processing_result import ProcessingResult
 from app.services.file_storage import save_uploaded_file, cleanup_document_file
-from app.services.queue import enqueue_job
+from app.services.outbox import create_outbox_event
 
 
 async def create_document(db: Session, file: UploadFile) -> Document:
@@ -37,10 +37,11 @@ async def create_document(db: Session, file: UploadFile) -> Document:
         attempts=0,
     )
 
-    # Step 3: Persist models to DB with rollback safety
+    # Step 3: Persist models and OutboxEvent atomically with rollback safety
     try:
         db.add(doc)
         db.add(job)
+        create_outbox_event(db, job_id=job.id, document_id=doc.id)
         db.commit()
         db.refresh(doc)
     except SQLAlchemyError as exc:
@@ -51,9 +52,6 @@ async def create_document(db: Session, file: UploadFile) -> Document:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database persistence error occurred.",
         )
-
-    # Step 4: Enqueue processing job payload to Redis
-    enqueue_job(job.id, doc.id)
 
     return doc
 
@@ -90,16 +88,16 @@ def retry_document_job(db: Session, document_id: uuid.UUID) -> Document:
             detail=f"Cannot retry job in status '{job.status}'. Only FAILED jobs can be retried.",
         )
 
-    # Re-queue the job
+    # Re-queue the job and create OutboxEvent atomically
     job.status = JobStatus.QUEUED
     job.error = None
     job.lease_token = None
     job.lease_expires_at = None
     doc.status = DocumentStatus.UPLOADED
+    create_outbox_event(db, job_id=job.id, document_id=doc.id)
     db.commit()
     db.refresh(doc)
 
-    enqueue_job(job.id, doc.id)
     return doc
 
 

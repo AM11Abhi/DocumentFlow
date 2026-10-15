@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     WORKER_MAX_EXECUTION_TIME_SECONDS: int = 300
     WORKER_RECOVERY_INTERVAL_SECONDS: int = 30
 
+    # Transactional Outbox Configuration
+    OUTBOX_DISPATCH_INTERVAL_SECONDS: float = 5.0
+    OUTBOX_BATCH_SIZE: int = 50
+    OUTBOX_MAX_RETRIES: int = 5
+    OUTBOX_BASE_BACKOFF_SECONDS: float = 2.0
+    OUTBOX_MAX_BACKOFF_SECONDS: float = 60.0
+
     model_config = SettingsConfigDict(
         env_file=os.path.join(
             os.path.dirname(os.path.dirname(__file__)), ".env"

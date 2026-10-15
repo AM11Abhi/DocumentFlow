@@ -44,7 +44,9 @@ def test_upload_creates_queued_processing_job():
     assert job_info["attempts"] == 0
     assert job_info["document_id"] == data["id"]
 
-    # Verify message is in Redis queue
+    # Verify message reaches Redis queue via outbox dispatcher
+    from app.services.outbox import dispatch_pending_outbox_events
+    dispatch_pending_outbox_events()
     job_item = dequeue_job(timeout=1)
     assert job_item is not None
     job_id, doc_id = job_item

@@ -139,7 +139,9 @@ def test_expired_job_recovered_and_requeued(clean_db):
     assert "expired" in job.error.lower()
     assert doc.status == DocumentStatus.UPLOADED
 
-    # Verify re-enqueued to Redis
+    # Verify re-enqueued to Redis via outbox dispatcher
+    from app.services.outbox import dispatch_pending_outbox_events
+    dispatch_pending_outbox_events(db=db)
     item = dequeue_job(timeout=1)
     assert item is not None
     assert item == (job.id, doc.id)
@@ -271,6 +273,10 @@ def test_concurrent_recovery_attempts_do_not_reclaim_same_job_twice(clean_db):
     # Immediate second recovery sweep
     rec2 = recover_stale_jobs(db=db, now=now)
     assert job.id not in rec2  # Already reclaimed and transitioned to QUEUED
+
+    # Dispatch outbox events to Redis
+    from app.services.outbox import dispatch_pending_outbox_events
+    dispatch_pending_outbox_events(db=db)
 
     # Redis queue should contain exactly 1 message
     item1 = dequeue_job(timeout=1)
