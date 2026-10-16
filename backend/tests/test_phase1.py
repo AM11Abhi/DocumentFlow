@@ -115,11 +115,12 @@ def test_upload_unsupported_file_type():
     assert "Unsupported file type" in data["detail"]
 
 
-def test_upload_oversized_file():
-    large_path = os.path.join("..", "samples", "oversized.pdf")
-    assert os.path.exists(large_path)
+def test_upload_oversized_file(tmp_path):
+    oversized_file = tmp_path / "oversized.pdf"
+    oversized_content = b"%PDF-1.4\n" + b"0" * (settings.MAX_FILE_SIZE_BYTES + 1024)
+    oversized_file.write_bytes(oversized_content)
 
-    with open(large_path, "rb") as f:
+    with open(oversized_file, "rb") as f:
         response = client.post(
             "/documents",
             files={"file": ("oversized.pdf", f, "application/pdf")},
