@@ -47,6 +47,7 @@ jobs:
       REDIS_HOST: localhost
       REDIS_PORT: 6379
       UPLOAD_DIR: uploads
+      PYTHONPATH: ${{ github.workspace }}/backend
 
     steps:
       - name: Checkout repository
